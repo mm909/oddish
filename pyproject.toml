@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oddish"
+version = "0.0.dev0"
+description = "An esoteric library"
+authors = [
+    { name = "Oddish.Oddish", email = "oddish.dev@gmail.com" }
+]
+dependencies = [
+
+]
+
+[tool.setuptools]
+packages = ["oddish"]

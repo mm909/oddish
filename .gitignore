@@ -1,0 +1,3 @@
+*.egg-info/
+oddish/health/__pycache__/
+oddish/__pycache__/
