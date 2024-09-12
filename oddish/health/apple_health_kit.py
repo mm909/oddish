@@ -170,7 +170,7 @@ class AppleHealthKit:
         metadata = {}
         
         export_date_xml = self.apple_health_export_xml_root.find('.//ExportDate')
-        metadata['export_date'] = export_date_xml.attrib['value']
+        metadata['export_date'] = pd.to_datetime(export_date_xml.attrib['value'])
         logger.debug(f'Apple HealthKit export date: {metadata["export_date"]}')
 
         metadata_size_mb = sys.getsizeof(metadata) / 1024 / 1024
@@ -199,6 +199,8 @@ class AppleHealthKit:
             characteristic_type = ahk_characteristic_id.replace('HKCharacteristicTypeIdentifier', '')
             characteristics[characteristic_type] = characteristics_xml.attrib[ahk_characteristic_id]
 
+        characteristics['DateOfBirth'] = pd.to_datetime(characteristics['DateOfBirth'])
+
         characteristics_size_mb = sys.getsizeof(characteristics) / 1024 / 1024
         self.memory_usage_mb += characteristics_size_mb    
 
@@ -210,9 +212,6 @@ class AppleHealthKit:
     def _build_AHK_quantity_tables(self):
         """
         Build the quantity tables from the Apple HealthKit export XML
-
-        (TODO)
-        Want to include where to find a list of all possible quantity types
 
         Returns
         -------
@@ -249,6 +248,10 @@ class AppleHealthKit:
         for record_type in quantities:
             quantities[record_type] = pd.DataFrame(quantities[record_type])
 
+            date_columns = [col for col in quantities[record_type].columns if 'date' in col.lower()]
+            for date_column in date_columns:
+                quantities[record_type][date_column] = pd.to_datetime(quantities[record_type][date_column])
+                                                                                
             num_rows, num_columns = quantities[record_type].shape
             memory_usage_mb = quantities[record_type].memory_usage(deep=True).sum() / 1024 / 1024
             logger.debug(f'{record_type} {num_rows:,} x {num_columns:,} ({memory_usage_mb:.2f} MB)')
@@ -265,9 +268,6 @@ class AppleHealthKit:
     def _build_AHK_workout_tables(self):
         """
         Build the workout tables from the Apple HealthKit export XML
-
-        (TODO)
-        Want to include where to find a list of all possible workout types
 
         Returns
         -------
@@ -314,6 +314,10 @@ class AppleHealthKit:
         workout_total_memory_usage_mb = 0
         for workout_type in workouts:
             workouts[workout_type] = pd.DataFrame(workouts[workout_type])
+
+            date_columns = [col for col in workouts[workout_type].columns if 'date' in col.lower()]
+            for date_column in date_columns:
+                workouts[workout_type][date_column] = pd.to_datetime(workouts[workout_type][date_column])
 
             num_rows, num_columns = workouts[workout_type].shape
             memory_usage_mb = workouts[workout_type].memory_usage(deep=True).sum() / 1024 / 1024
