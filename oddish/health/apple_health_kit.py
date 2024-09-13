@@ -240,6 +240,7 @@ class AppleHealthKit:
 
             if record_type not in quantities:
                 quantities[record_type] = []
+                
             quantities[record_type].append(record_dict)
 
         logger.debug(f'Found {len(quantities):,} unique quantity types')
@@ -251,6 +252,11 @@ class AppleHealthKit:
             date_columns = [col for col in quantities[record_type].columns if 'date' in col.lower()]
             for date_column in date_columns:
                 quantities[record_type][date_column] = pd.to_datetime(quantities[record_type][date_column])
+
+            try:
+                quantities[record_type]['value'] = pd.to_numeric(quantities[record_type]['value'])
+            except:
+                pass
                                                                                 
             num_rows, num_columns = quantities[record_type].shape
             memory_usage_mb = quantities[record_type].memory_usage(deep=True).sum() / 1024 / 1024
@@ -385,6 +391,17 @@ class AppleHealthKit:
             logger.debug(f'Processed {route_id} with {len(trkpts):,} track points')
 
         routes = pd.DataFrame(trkpt_list)
+
+        date_columns = [col for col in routes.columns if 'time' in col.lower()]
+        for date_column in date_columns:
+            routes[date_column] = pd.to_datetime(routes[date_column])
+
+        value_columns = ['lat', 'lon', 'ele', 'speed', 'course', 'hAcc', 'vAcc']
+        for value_column in value_columns:
+            try:
+                routes[value_column] = pd.to_numeric(routes[value_column])
+            except:
+                pass
 
         num_rows, num_columns = routes.shape
         route_memory_usage_mb = routes.memory_usage(deep=True).sum() / 1024 / 1024

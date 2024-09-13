@@ -183,6 +183,9 @@ HKQuantityTypeIdentifierBasalEnergyBurned
 #### AHK memory usage
 Apple HealthKit data ingestion complete in 28.92 seconds (1335.04 MB)
 
+[2024-09-12] We now try to cast values in the quantities table to numeric, this saves a massive amount of memory
+Apple HealthKit data ingestion complete in 51.77 seconds (996.98 MB)
+
 #### export.xml parsing (DTD and vertical tab \x0b)
 The export.xml file has some Document Type Definition text at the beginning of the file. This makes the ET.fromstring() parse fail. We need to remove these lines from the string before parsing. There are several ways to do this. 
 
