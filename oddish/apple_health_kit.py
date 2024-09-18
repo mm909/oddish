@@ -3,6 +3,7 @@ import re
 import sys
 import time
 import glob
+import pickle
 import logging
 import pandas as pd
 import xml.etree.ElementTree as ET
@@ -83,8 +84,8 @@ class AppleHealthKit:
         Configuration dictionary containing paths and other settings.
     """
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, apple_health_export_folder):
+        self.apple_health_export_folder = apple_health_export_folder
         self.memory_usage_mb = 0
         self.xml_namespaces = {'ahk-workout-route': 'http://www.topografix.com/GPX/1/1'}
 
@@ -130,7 +131,7 @@ class AppleHealthKit:
         -------
             apple_health_export_xml_root (xml.etree.ElementTree.Element): The root of the Apple HealthKit export XML
         """
-        apple_health_export_xml_file = f'{self.config["apple_health_export_folder"]}/export.xml'
+        apple_health_export_xml_file = f'{self.apple_health_export_folder}/export.xml'
 
         logger.info(f'Loading Apple HealthKit export XML from {apple_health_export_xml_file}...')
 
@@ -301,11 +302,17 @@ class AppleHealthKit:
             for metadata_entry in workout_metadata:
                 workout_dict[metadata_entry.attrib['key']] = metadata_entry.attrib['value']
 
+            for child in workout.findall('.//WorkoutActivity'):
+                workout.remove(child)
+
             workout_statistics = workout.findall('.//WorkoutStatistics')
             for workout_statistic in workout_statistics:
-                workout_dict[workout_statistic.attrib['type']] = workout_statistic.attrib['sum']
-                workout_dict[workout_statistic.attrib['type'] + '_unit'] = workout_statistic.attrib['unit']
-                    
+                ws_type = workout_statistic.attrib['type']
+                ws_type = ws_type.replace('HKQuantityTypeIdentifier', '')
+                for key in workout_statistic.attrib.keys():
+                    if key not in ['type', 'startDate', 'endDate']:
+                        workout_dict[f'{ws_type}_{key}'] = workout_statistic.attrib[key]
+
             workout_route = workout.find('.//WorkoutRoute')
             if workout_route is not None:
                 file_reference = workout_route.find('.//FileReference').attrib['path']
@@ -351,7 +358,7 @@ class AppleHealthKit:
         ts = time.time()
         logger.debug('Building route table from Apple HealthKit export XML...')
 
-        route_folder = f'{self.config["apple_health_export_folder"]}/workout-routes/'
+        route_folder = f'{self.apple_health_export_folder}/workout-routes/'
         route_files = glob.glob(f'{route_folder}/*.gpx')
         logger.debug(f'Found {len(route_files):,} route files in {route_folder}')
         
@@ -411,3 +418,44 @@ class AppleHealthKit:
         logger.debug(f'Processed {len(route_files):,} route files: {num_rows:,} x {num_columns:,} ({route_memory_usage_mb:.2f} MB)')
         logger.debug(f'Built route table in {time.time() - ts:.2f} seconds')
         return routes
+
+def build_apple_health_kit(apple_health_export_folder, pickle_file=None):
+    """
+    Build an AppleHealthKit object from the Apple HealthKit export data.
+
+    Parameters
+    ----------
+    apple_health_export_folder : str
+        The folder containing the Apple HealthKit export data.
+
+    Returns
+    -------
+    apple_health_kit : AppleHealthKit
+        An AppleHealthKit object containing the parsed Apple HealthKit export data.
+
+    """
+    apple_health_kit = AppleHealthKit(apple_health_export_folder)
+    if pickle_file:
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(apple_health_kit, f)
+    return apple_health_kit
+
+def load_apple_health_kit(apple_health_kit_pkl_file):
+    """
+    Load an AppleHealthKit object from a pickle file.
+
+    Parameters
+    ----------
+    apple_health_kit_pkl_file : str
+        The path to the pickle file containing the AppleHealthKit object.
+
+    Returns
+    -------
+    apple_health_kit : AppleHealthKit
+        An AppleHealthKit object loaded from the pickle file.
+    """
+    ts = time.time()
+    with open(apple_health_kit_pkl_file, 'rb') as f:
+        apple_health_kit = pickle.load(f)
+    logging.info(f'Loaded AppleHealthKit in {time.time() - ts:.2f} seconds')
+    return apple_health_kit

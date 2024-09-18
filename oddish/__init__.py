@@ -9,6 +9,6 @@
 import importlib.metadata
 __version__ = importlib.metadata.version('oddish')
 
-from oddish import health
-from oddish.health import *
-from oddish.run import *
+
+from oddish.apple_health_kit import *
+from oddish.polygon import *
