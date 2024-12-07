@@ -1,5 +1,5 @@
 *.egg-info/
-oddish/health/__pycache__/
-oddish/__pycache__/
-oddish/run/__pycache__/__init__.cpython-312.pyc
-oddish/run/__pycache__/run.cpython-312.pyc
+*/__pycache__/
+**/apple_health_export/
+**/apple_health_kit_explore/*.pkl
+**/apple_health_kit_explore/*.json

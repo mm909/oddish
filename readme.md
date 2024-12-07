@@ -4,6 +4,7 @@
 Thank you for listening
 
 ## AppleHealthKit 
+HealthKit Export Version: 13
 
 ### Metadata
 The only metadata we collect from the export.xml is the export date

@@ -3,22 +3,18 @@ import re
 import sys
 import time
 import glob
+import json
 import pickle
 import logging
 import pandas as pd
-import xml.etree.ElementTree as ET
+
+from lxml import etree as ET
 
 logger = logging.getLogger(__name__)
 
 class AppleHealthKit:
     """
     A class to handle the ingestion and processing of Apple HealthKit export data.
-
-    This class loads, parses, and converts Apple HealthKit export data into usable 
-    structured formats. AppleHealthKit makes no assumptions about data formatting or
-    timezones, and the data is stored in raw form. The class provides internal methods
-    to extract metadata, characteristics, quantities, workouts, and routes from the
-    Apple HealthKit export XML. The class does not have any public facing methods.
 
     Exporting Apple HealthKit data is done through the Apple Health app on an iOS device.
     Follow https://support.apple.com/guide/iphone/share-your-health-data-iph5ede58c3d/ios
@@ -32,21 +28,13 @@ class AppleHealthKit:
     ├── workout-routes/
     │   ├── route_2021-06-18_7.36am.gpx
 
-    Example Usage
-    -------------
-    >>> config = {
-    >>>     'apple_health_export_folder': 'apple_health_export'
-    >>> }
-    >>> ahk = AppleHealthKit(config)
-    >>> print(ahk.quantities['BodyMass'])
-
     Attributes
     ----------
     config : dict
         Configuration dictionary containing paths and other settings.
     xml_namespaces : dict
         Dictionary of XML namespaces used in the Apple HealthKit export data.
-    apple_health_export_xml_root : xml.etree.ElementTree.Element
+    apple_health_export_xml_root : lxml.etree.Element
         The root element of the Apple HealthKit export XML.
     metadata : dict
         Dictionary containing metadata from the Apple HealthKit export XML.
@@ -77,12 +65,12 @@ class AppleHealthKit:
         Builds workout tables from the Apple HealthKit export XML.
     _build_AHK_route_tables(self)
         Builds route tables from the Apple HealthKit export XML.
-
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary containing paths and other settings.
+    save_to_pickle(self, pickle_file)
+        Saves the AppleHealthKit object to a pickle file.
+    export_to_json(self, export_file='apple_health_kit.json')
+        Exports the Apple HealthKit data to a JSON file
     """
+
 
     def __init__(self, apple_health_export_folder):
         self.apple_health_export_folder = apple_health_export_folder
@@ -92,7 +80,6 @@ class AppleHealthKit:
         ts = time.time()
         self._ingest_apple_health_data()
         logger.info(f'Apple HealthKit data ingestion complete in {time.time() - ts:.2f} seconds ({self.memory_usage_mb:.2f} MB)')
-
         return
 
 
@@ -119,13 +106,11 @@ class AppleHealthKit:
         """
         Load the Apple HealthKit export XML file into memory
 
-        Note
-        ----
-            [2024-09-07] 
-            The XML object may need to be deleted after processing to free up memory
-            Total memory usage of the whole AppleHealthKit object is (1335.04 MB)
-            Given that Apple HealthKit export XML object size: 11.81 MB
-            I am not worried about deleting the XML object
+        Notes
+        -----
+        The XML file is very large, we need to use lxml to parse it efficiently.
+        lxml also does not like 'encoding="UTF-8"' in the XML declaration, so we remove it.
+        
 
         Returns
         -------
@@ -139,20 +124,24 @@ class AppleHealthKit:
         with open(apple_health_export_xml_file, 'r') as f:
             xml_string = f.read()
 
+            # Remove encoding="UTF-8" from XML declaration
+            xml_string = re.sub(r'encoding="UTF-8"', '', xml_string)
+
+            # Remove DOCTYPE declaration
             start_strip = re.search('<!DOCTYPE', xml_string).span()[0]
             end_strip = re.search(']>', xml_string).span()[1]
             xml_string = xml_string[:start_strip] + xml_string[end_strip:]
 
+            # Remove null bytes
             xml_string = xml_string.replace("\x0b", "")
-
-
+            
         apple_health_export_xml_root = ET.fromstring(xml_string)
 
-        apple_health_export_xml_root_size_mb = sys.getsizeof(apple_health_export_xml_root) / 1024 / 1024
-        self.memory_usage_mb += apple_health_export_xml_root_size_mb
+        xml_string_size_mb = sys.getsizeof(xml_string) / 1024 / 1024
+        self.memory_usage_mb += xml_string_size_mb
 
         logger.debug(f'Loaded Apple HealthKit export XML from {apple_health_export_xml_file} in {time.time() - ts:.2f} seconds')
-        logger.debug(f'Apple HealthKit export XML object size: {apple_health_export_xml_root_size_mb:.2f} MB')
+        logger.debug(f'Apple HealthKit export XML string size: {xml_string_size_mb:.2f} MB')
         return apple_health_export_xml_root
     
 
@@ -418,6 +407,39 @@ class AppleHealthKit:
         logger.debug(f'Processed {len(route_files):,} route files: {num_rows:,} x {num_columns:,} ({route_memory_usage_mb:.2f} MB)')
         logger.debug(f'Built route table in {time.time() - ts:.2f} seconds')
         return routes
+    
+
+    def save_to_pickle(self, pickle_file):
+        # cannot pickle 'lxml.etree._Element' object
+        self.apple_health_export_xml_root = None
+
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(self, f)
+        return
+
+
+    def export_to_json(self, export_file='apple_health_kit.json'):
+        """
+        Export the Apple HealthKit data to a JSON file.
+
+        Parameters
+        ----------
+        export_file : str
+            The path to the JSON file to export the Apple HealthKit data to.
+        """
+
+        body_mass_json = self.quantities['BodyMass'].groupby('startDate').agg({'value': 'mean'}).reset_index()
+        body_mass_json['startDate'] = body_mass_json['startDate'].dt.strftime('%Y-%m-%d')
+        body_mass_json = body_mass_json.to_dict(orient='records')
+
+        ahk_export = {
+            'body_mass': body_mass_json,
+        }
+
+        with open(export_file, 'w') as f:
+            json.dump(ahk_export, f)
+        return
+
 
 def build_apple_health_kit(apple_health_export_folder, pickle_file=None):
     """
@@ -436,9 +458,9 @@ def build_apple_health_kit(apple_health_export_folder, pickle_file=None):
     """
     apple_health_kit = AppleHealthKit(apple_health_export_folder)
     if pickle_file:
-        with open(pickle_file, 'wb') as f:
-            pickle.dump(apple_health_kit, f)
+        apple_health_kit.save_to_pickle(pickle_file)
     return apple_health_kit
+
 
 def load_apple_health_kit(apple_health_kit_pkl_file):
     """
