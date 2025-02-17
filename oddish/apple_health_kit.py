@@ -1,5 +1,5 @@
-
 import re
+import os
 import sys
 import time
 import glob
@@ -7,8 +7,8 @@ import json
 import pickle
 import logging
 import pandas as pd
-
 from lxml import etree as ET
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,9 @@ class AppleHealthKit:
         Ingests the Apple HealthKit data by loading and parsing the export XML.
     _load_apple_healthkit_export_xml(self)
         Loads the Apple HealthKit export XML file into memory.
-    _get_metadata(self)
+    _build_metadata(self)
         Extracts metadata from the Apple HealthKit export XML.
-    _get_characteristics(self)
+    _build_characteristics(self)
         Extracts characteristics from the Apple HealthKit export XML.
     _build_AHK_quantity_tables(self)
         Builds quantity tables from the Apple HealthKit export XML.
@@ -72,11 +72,25 @@ class AppleHealthKit:
     """
 
 
-    def __init__(self, apple_health_export_folder):
-        self.apple_health_export_folder = apple_health_export_folder
+    def __init__(self, config):
+        self._process_config(config)
+
         self.memory_usage_mb = 0
         self.xml_namespaces = {'ahk-workout-route': 'http://www.topografix.com/GPX/1/1'}
 
+        os.makedirs(self.output_folder, exist_ok=True)
+        return
+    
+
+    def _process_config(self, config):
+        self.config = config
+        self.apple_health_export_folder = config.get('apple_health_export_folder', 'apple_health_export')
+        self.output_folder = config.get('output_folder', 'AppleHealthKit')
+        self.save_exports = config.get('save_exports', False)
+        return
+
+
+    def build(self):
         ts = time.time()
         self._ingest_apple_health_data()
         logger.info(f'Apple HealthKit data ingestion complete in {time.time() - ts:.2f} seconds ({self.memory_usage_mb:.2f} MB)')
@@ -92,8 +106,8 @@ class AppleHealthKit:
         ts = time.time()
         logger.info('Ingesting Apple HealthKit data...')
 
-        self.metadata = self._get_metadata()
-        self.characteristics = self._get_characteristics()
+        self.metadata = self._build_metadata()
+        self.characteristics = self._build_characteristics()
         self.quantities = self._build_AHK_quantity_tables()
         self.workouts = self._build_AHK_workout_tables()
         self.routes = self._build_AHK_route_tables()
@@ -111,7 +125,6 @@ class AppleHealthKit:
         The XML file is very large, we need to use lxml to parse it efficiently.
         lxml also does not like 'encoding="UTF-8"' in the XML declaration, so we remove it.
         
-
         Returns
         -------
             apple_health_export_xml_root (xml.etree.ElementTree.Element): The root of the Apple HealthKit export XML
@@ -145,7 +158,7 @@ class AppleHealthKit:
         return apple_health_export_xml_root
     
 
-    def _get_metadata(self):
+    def _build_metadata(self):
         """
         Get the metadata from the Apple HealthKit export XML
 
@@ -163,6 +176,12 @@ class AppleHealthKit:
         metadata['export_date'] = pd.to_datetime(export_date_xml.attrib['value'])
         logger.debug(f'Apple HealthKit export date: {metadata["export_date"]}')
 
+        if self.save_exports:
+            metadata_out_folder = f'{self.output_folder}/data/metadata'
+            os.makedirs(metadata_out_folder, exist_ok=True)
+            with open(f'{metadata_out_folder}/metadata.json', 'w') as f:
+                json.dump(metadata, f, default=str)
+
         metadata_size_mb = sys.getsizeof(metadata) / 1024 / 1024
         self.memory_usage_mb += metadata_size_mb
 
@@ -170,7 +189,7 @@ class AppleHealthKit:
         return metadata
 
 
-    def _get_characteristics(self):
+    def _build_characteristics(self):
         """
         Get the characteristics from the Apple HealthKit export XML
 
@@ -190,6 +209,12 @@ class AppleHealthKit:
             characteristics[characteristic_type] = characteristics_xml.attrib[ahk_characteristic_id]
 
         characteristics['DateOfBirth'] = pd.to_datetime(characteristics['DateOfBirth'])
+
+        if self.save_exports:
+            characteristics_out_folder = f'{self.output_folder}/data/characteristics'
+            os.makedirs(characteristics_out_folder, exist_ok=True)
+            with open(f'{characteristics_out_folder}/characteristics.json', 'w') as f:
+                json.dump(characteristics, f, default=str)
 
         characteristics_size_mb = sys.getsizeof(characteristics) / 1024 / 1024
         self.memory_usage_mb += characteristics_size_mb    
@@ -247,6 +272,11 @@ class AppleHealthKit:
                 quantities[record_type]['value'] = pd.to_numeric(quantities[record_type]['value'])
             except:
                 pass
+
+            if self.save_exports:
+                quantity_out_folder = f'{self.output_folder}/data/quantities'
+                os.makedirs(quantity_out_folder, exist_ok=True)
+                quantities[record_type].to_csv(f'{quantity_out_folder}/{record_type}.csv', index=False)
                                                                                 
             num_rows, num_columns = quantities[record_type].shape
             memory_usage_mb = quantities[record_type].memory_usage(deep=True).sum() / 1024 / 1024
@@ -320,6 +350,11 @@ class AppleHealthKit:
             date_columns = [col for col in workouts[workout_type].columns if 'date' in col.lower()]
             for date_column in date_columns:
                 workouts[workout_type][date_column] = pd.to_datetime(workouts[workout_type][date_column])
+
+            if self.save_exports:
+                workout_out_folder = f'{self.output_folder}/data/workouts'
+                os.makedirs(workout_out_folder, exist_ok=True)
+                workouts[workout_type].to_csv(f'{workout_out_folder}/{workout_type}.csv', index=False)
 
             num_rows, num_columns = workouts[workout_type].shape
             memory_usage_mb = workouts[workout_type].memory_usage(deep=True).sum() / 1024 / 1024
@@ -399,6 +434,11 @@ class AppleHealthKit:
             except:
                 pass
 
+        if self.save_exports:
+            route_out_folder = f'{self.output_folder}/data/routes'
+            os.makedirs(route_out_folder, exist_ok=True)
+            routes.to_csv(f'{route_out_folder}/routes.csv', index=False)
+
         num_rows, num_columns = routes.shape
         route_memory_usage_mb = routes.memory_usage(deep=True).sum() / 1024 / 1024
 
@@ -407,18 +447,9 @@ class AppleHealthKit:
         logger.debug(f'Processed {len(route_files):,} route files: {num_rows:,} x {num_columns:,} ({route_memory_usage_mb:.2f} MB)')
         logger.debug(f'Built route table in {time.time() - ts:.2f} seconds')
         return routes
-    
-
-    def save_to_pickle(self, pickle_file):
-        # cannot pickle 'lxml.etree._Element' object
-        self.apple_health_export_xml_root = None
-
-        with open(pickle_file, 'wb') as f:
-            pickle.dump(self, f)
-        return
 
 
-    def export_to_json(self, export_file='apple_health_kit.json'):
+    def export_to_json(self, export_config):
         """
         Export the Apple HealthKit data to a JSON file.
 
@@ -428,56 +459,126 @@ class AppleHealthKit:
             The path to the JSON file to export the Apple HealthKit data to.
         """
 
-        body_mass_json = self.quantities['BodyMass'].groupby('startDate').agg({'value': 'mean'}).reset_index()
-        body_mass_json['startDate'] = body_mass_json['startDate'].dt.strftime('%Y-%m-%d')
-        body_mass_json = body_mass_json.to_dict(orient='records')
+        export_file = export_config.get('export_file', 'apple_health_kit.json')
+        export_start_date = export_config.get('export_start_date', '2024-01-01')
 
-        ahk_export = {
-            'body_mass': body_mass_json,
-        }
+        ahk_export = {}
+        ahk_export['metadata'] = self._export_metadata_to_json()
+        ahk_export['characteristics'] = self._export_characteristics_to_json()
+        ahk_export['quantities'] = self._export_quantities_to_json(export_start_date)
+        ahk_export['runs'] = self._export_runs_to_json(export_start_date)
+
+        print(ahk_export['runs'])
 
         with open(export_file, 'w') as f:
-            json.dump(ahk_export, f)
+            json.dump(ahk_export, f, default=str)
         return
+    
+
+    def _export_metadata_to_json(self):
+        return self.metadata
 
 
-def build_apple_health_kit(apple_health_export_folder, pickle_file=None):
-    """
-    Build an AppleHealthKit object from the Apple HealthKit export data.
+    def _export_characteristics_to_json(self):
+        return self.characteristics
+    
 
-    Parameters
-    ----------
-    apple_health_export_folder : str
-        The folder containing the Apple HealthKit export data.
+    def _export_quantities_to_json(self, export_start_date):
+        selected_daily_quantities = [
+            'BodyMass', 
+            'RestingHeartRate', 
+            'VO2Max'
+        ]
+        daily_quantities_df = pd.DataFrame({})
+        for quantity in selected_daily_quantities:
+            quantity_summary = self.quantities[quantity].copy()
 
-    Returns
-    -------
-    apple_health_kit : AppleHealthKit
-        An AppleHealthKit object containing the parsed Apple HealthKit export data.
+            # Filter out quantities before the export start date
+            quantity_summary['startDate'] = quantity_summary['startDate'].dt.tz_localize(None)
+            quantity_summary = quantity_summary[quantity_summary['startDate'] >= export_start_date]
 
-    """
-    apple_health_kit = AppleHealthKit(apple_health_export_folder)
-    if pickle_file:
-        apple_health_kit.save_to_pickle(pickle_file)
-    return apple_health_kit
+            # Aggregate the quantities by day
+            quantity_summary['startDate'] = quantity_summary['startDate'].dt.strftime('%Y-%m-%d')
+            quantity_summary = quantity_summary.groupby('startDate').agg({'value': 'mean'}).reset_index()
+            quantity_summary = quantity_summary.rename(columns={'startDate': 'date', 'value': quantity})
+
+            if daily_quantities_df.empty:
+                daily_quantities_df = quantity_summary
+            else:
+                daily_quantities_df = daily_quantities_df.merge(quantity_summary, on='date', how='outer')
+            
+        daily_quantities_df.set_index('date', inplace=True)
+        return daily_quantities_df.to_dict(orient='index')
+    
+
+    def _export_runs_to_json(self, export_start_date):
+        runs_jsons = []
+        for index, run in self.workouts['Running'].iterrows():
+            run_datetime = run['startDate'].replace(tzinfo=None)
+            if run_datetime < export_start_date:
+                continue
+
+            try:
+                route_id = run['route_file_reference'].split('/')[-1].replace('.gpx', '')
+            except Exception as e:
+                logger.error(f'Failed to get route_id for run on {run["startDate"]}')
+                continue
+
+            gpx_data = self._get_run_gpx_export(route_id)
+            heart_rate_data = self._get_run_heart_rate_export(run)
+
+            track_data = gpx_data.join(heart_rate_data, how='outer')
+            track_data = track_data.to_dict(orient='index')
+
+            run_json = {
+                'HKMetadataKeySyncIdentifier': run['HKMetadataKeySyncIdentifier'],
+                'start_date': run['startDate'],
+                'end_date': run['endDate'],
+                'duration': run['duration'],
+                'total_distance': run['DistanceWalkingRunning_sum'],
+                'temperature': run['HKWeatherTemperature'],
+                'humidity': run['HKWeatherHumidity'],
+                'timezone': run['HKTimeZone'],
+                'elevation_ascended': run['HKElevationAscended'],
+                'heart_rate_average': run['HeartRate_average'],
+                'running_speed_average': run['RunningSpeed_average'],
+                'track_data': track_data,
+            }
+            runs_jsons.append(run_json)
+        return runs_jsons
 
 
-def load_apple_health_kit(apple_health_kit_pkl_file):
-    """
-    Load an AppleHealthKit object from a pickle file.
+    def _get_run_gpx_export(self, route_id):
+        route = self.routes[self.routes['route_id'] == route_id].copy()
+        route = route[['lat', 'lon', 'ele', 'speed', 'time']]
+        route = route.groupby('time').mean()
+        return route
+    
 
-    Parameters
-    ----------
-    apple_health_kit_pkl_file : str
-        The path to the pickle file containing the AppleHealthKit object.
+    def _get_run_heart_rate_export(self, run):
+        heart_rate = self.quantities['HeartRate'][
+            (self.quantities['HeartRate']['startDate'] >= run['startDate']) 
+            & (self.quantities['HeartRate']['endDate'] <= run['endDate'])
+        ].copy()[['startDate', 'value']]
+        heart_rate = heart_rate.rename(columns={'startDate': 'time', 'value': 'heart_rate'})
+        heart_rate['time'] = heart_rate['time'].dt.tz_convert(run['HKTimeZone'])
+        heart_rate.set_index('time', inplace=True)
+        return heart_rate
 
-    Returns
-    -------
-    apple_health_kit : AppleHealthKit
-        An AppleHealthKit object loaded from the pickle file.
-    """
-    ts = time.time()
-    with open(apple_health_kit_pkl_file, 'rb') as f:
-        apple_health_kit = pickle.load(f)
-    logging.info(f'Loaded AppleHealthKit in {time.time() - ts:.2f} seconds')
-    return apple_health_kit
+
+    def save_to_pickle(self, pickle_file):
+        # cannot pickle 'lxml.etree._Element' object
+        self.apple_health_export_xml_root = None
+
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(self, f)
+        return
+    
+
+    @staticmethod
+    def load_apple_health_kit(apple_health_kit_pkl_file):
+        ts = time.time()
+        with open(apple_health_kit_pkl_file, 'rb') as f:
+            apple_health_kit = pickle.load(f)
+        logging.info(f'Loaded AppleHealthKit in {time.time() - ts:.2f} seconds')
+        return apple_health_kit
