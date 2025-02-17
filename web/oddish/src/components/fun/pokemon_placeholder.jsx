@@ -75,8 +75,8 @@ function PokemonPlaceholder({id, description}) {
           >
             {pokemonId_formated}
           </div>
-          <div className='text-[16px]'>
-            {description}
+          <div className='text-[16px] my-[20px]'>
+            {pokemonData && pokemonData.id === 404 ? description : ''} 
           </div>
           <div className='max-w-[300px] min-w-[300px] flex justify-center'>
             <img 

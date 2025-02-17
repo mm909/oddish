@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import glob
+import math
 import json
 import pickle
 import logging
@@ -134,20 +135,22 @@ class AppleHealthKit:
         logger.info(f'Loading Apple HealthKit export XML from {apple_health_export_xml_file}...')
 
         ts = time.time()
-        with open(apple_health_export_xml_file, 'r') as f:
+        with open(apple_health_export_xml_file, 'r', encoding='iso-8859-1') as f:
             xml_string = f.read()
 
             # Remove encoding="UTF-8" from XML declaration
-            xml_string = re.sub(r'encoding="UTF-8"', '', xml_string)
+            xml_string = re.sub(r' encoding="UTF-8"', '', xml_string)
 
             # Remove DOCTYPE declaration
-            start_strip = re.search('<!DOCTYPE', xml_string).span()[0]
-            end_strip = re.search(']>', xml_string).span()[1]
-            xml_string = xml_string[:start_strip] + xml_string[end_strip:]
+            start_strip = re.search('<!DOCTYPE', xml_string)
+            if start_strip:
+                start_strip = start_strip.span()[0]
+                end_strip = re.search(']>', xml_string).span()[1]
+                xml_string = xml_string[:start_strip] + xml_string[end_strip:]
 
             # Remove null bytes
             xml_string = xml_string.replace("\x0b", "")
-            
+
         apple_health_export_xml_root = ET.fromstring(xml_string)
 
         xml_string_size_mb = sys.getsizeof(xml_string) / 1024 / 1024
@@ -467,8 +470,18 @@ class AppleHealthKit:
         ahk_export['characteristics'] = self._export_characteristics_to_json()
         ahk_export['quantities'] = self._export_quantities_to_json(export_start_date)
         ahk_export['runs'] = self._export_runs_to_json(export_start_date)
+        
+        def remove_nan_values(data):
+            if isinstance(data, dict):
+                return {k: remove_nan_values(v) for k, v in data.items() if not (isinstance(v, float) and math.isnan(v))}
+            elif isinstance(data, list):
+                return [remove_nan_values(item) for item in data if not (isinstance(item, float) and math.isnan(item))]
+            else:
+                return data
+            
+        ahk_export = remove_nan_values(ahk_export)
 
-        print(ahk_export['runs'])
+
 
         with open(export_file, 'w') as f:
             json.dump(ahk_export, f, default=str)
@@ -528,6 +541,7 @@ class AppleHealthKit:
             heart_rate_data = self._get_run_heart_rate_export(run)
 
             track_data = gpx_data.join(heart_rate_data, how='outer')
+            track_data.index = track_data.index.strftime('%Y-%m-%d %H:%M:%S')
             track_data = track_data.to_dict(orient='index')
 
             run_json = {
@@ -545,6 +559,7 @@ class AppleHealthKit:
                 'track_data': track_data,
             }
             runs_jsons.append(run_json)
+
         return runs_jsons
 
 

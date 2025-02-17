@@ -3,9 +3,9 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import './App.css'
 
 import Navagation from './components/navagation/navagation'
-import Ludwig from './pages/Ludwig'
 import Running from './pages/Running'
 import NotFound from './pages/not_found'
+import AppleHealthKitSummary from './pages/apple_health_kit_summary'
 
 function App() {
 
@@ -14,8 +14,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Navagation />}>
-            <Route path="ludwig" element={<Ludwig />} />
             <Route path="running" element={<Running />} />
+            <Route path="AHKSummary" element={<AppleHealthKitSummary />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

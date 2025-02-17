@@ -18,6 +18,7 @@ ahk_config = {
 ahk = oddish.AppleHealthKit(ahk_config)
 # ahk = oddish.AppleHealthKit.load_apple_health_kit('apple_health_kit.pkl')
 ahk.build()
+ahk.save_to_pickle('apple_health_kit.pkl')
 
 export_config = {
     'export_file': 'apple_health_kit.json',
