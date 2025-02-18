@@ -11,7 +11,7 @@ function LinkMenuBase({ title, links }) {
                     </div>
                     <ul>
                         {links.map((link, index) => (
-                            <li key={index} className=' text-wrap'>
+                            <li key={index} className=' text-wrap mb-[5px]'>
                                 <Link to={link.href}>{link.text}</Link>
                             </li>
                         ))}

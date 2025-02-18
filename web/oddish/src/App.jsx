@@ -6,6 +6,8 @@ import Navagation from './components/navagation/navagation'
 import Running from './pages/Running'
 import NotFound from './pages/not_found'
 import AppleHealthKitSummary from './pages/apple_health_kit_summary'
+import QuantitiesGraphs from './pages/quantities_graphs'
+import ElevationGraphs from './pages/elevation_graphs'
 
 function App() {
 
@@ -16,6 +18,8 @@ function App() {
           <Route path="/" element={<Navagation />}>
             <Route path="running" element={<Running />} />
             <Route path="AHKSummary" element={<AppleHealthKitSummary />} />
+            <Route path="QuantitiesGraphs" element={<QuantitiesGraphs />} />
+            <Route path="ElevationGraphs" element={<ElevationGraphs />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
