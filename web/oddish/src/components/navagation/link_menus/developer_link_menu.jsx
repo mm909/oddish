@@ -9,7 +9,10 @@ function DeveloperLinkMenu() {
           { href: '/AHKSummary', text: 'Apple Health Kit Summary' },
           { href: '/QuantitiesGraphs', text: 'Quantities Graphs' },
           { href: '/ElevationGraphs', text: 'Elevation Graphs' },
-        ]} className='flex-1' />
+        ]}/>
+        <LinkMenuBase title='Running' links={[
+          { href: '/RunList', text: 'Run List' },
+        ]}/>
       </div>
     </>
   )
