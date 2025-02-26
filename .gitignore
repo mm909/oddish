@@ -6,3 +6,5 @@
 /apple_health_kit_explore/AppleHealthKit/*
 
 oddish/dev/images/*
+oddish/dev/*.json
+web/oddish/src/lol/*.json

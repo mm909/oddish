@@ -15,7 +15,28 @@ class LeagueData:
         # self.save_cdn_data()
 
         self.load_data()
-        self.build_example_graph()
+        self.export_imposter_kits()
+        # self.build_example_graph()
+
+
+    def export_imposter_kits(self):
+        imposter_kits = {}
+        for champion in self.champion_list:
+            imposter_spells = self.get_imposter_spells(champion)
+            imposter_kits[champion] = imposter_spells
+
+        new_data_asset = {}
+        for champion, spells in imposter_kits.items():
+            replaced_spell = spells['replaced_spell']
+            selected_spell = spells['selected_spell']
+            if replaced_spell not in new_data_asset:
+                new_data_asset[replaced_spell] = {}
+            new_data_asset[replaced_spell][selected_spell] = {}
+
+        print(new_data_asset)
+
+        with open('exported_kits.json', 'w') as f:
+            json.dump(new_data_asset, f)
 
 
     def build_example_graph(self):

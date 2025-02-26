@@ -13,6 +13,9 @@ function DeveloperLinkMenu() {
         <LinkMenuBase title='Running' links={[
           { href: '/RunList', text: 'Run List' },
         ]}/>
+        <LinkMenuBase title='League' links={[
+          { href: '/LOLOddOneOut', text: 'LOL Odd One Out' },
+        ]}/>
       </div>
     </>
   )

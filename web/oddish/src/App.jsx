@@ -11,6 +11,7 @@ import AppleHealthKitSummary from './pages/apple_health_kit_summary'
 import QuantitiesGraphs from './pages/quantities_graphs'
 import ElevationGraphs from './pages/elevation_graphs'
 import RunList from './pages/run_list'
+import LOLOddOneOut from './pages/lol_odd_one_out'
 
 function App() {
 
@@ -25,6 +26,7 @@ function App() {
               <Route path="AHKSummary" element={<AppleHealthKitSummary />} />
               <Route path="QuantitiesGraphs" element={<QuantitiesGraphs />} />
               <Route path="ElevationGraphs" element={<ElevationGraphs />} />
+              <Route path="LOLOddOneOut" element={<LOLOddOneOut />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
