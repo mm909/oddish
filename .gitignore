@@ -8,3 +8,10 @@
 oddish/dev/images/*
 oddish/dev/*.json
 web/oddish/src/lol/*.json
+*.json
+*.png
+*.jpg
+*.gif
+oddish/dev/data_dragon_data/dragontail/data/*
+oddish/dev/data_dragon_data/dragontail/*
+oddish/dev/__pycache__/*

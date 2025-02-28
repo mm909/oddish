@@ -2,9 +2,10 @@ import os
 import json
 import requests
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import random
-
+from skimage.color import hsv2rgb, rgb2hsv
 from colorthief import ColorThief
 
 
@@ -15,8 +16,66 @@ class LeagueData:
         # self.save_cdn_data()
 
         self.load_data()
-        self.export_imposter_kits()
+        # self.export_imposter_kits()
         # self.build_example_graph()
+
+        self.color_wheel()
+
+
+    def color_wheel(self):
+        # Create a circular HSV color wheel
+        size = 500
+        radius = size // 2
+        x = np.linspace(-1, 1, size)
+        y = np.linspace(-1, 1, size)
+        x, y = np.meshgrid(x, y)
+        mask = x**2 + y**2 <= 1
+
+        selected_champion = 'Thresh'
+
+        hue = (np.arctan2(y, x) + np.pi) / (2 * np.pi)
+        saturation = np.sqrt(x**2 + y**2)
+        value = np.ones_like(hue)
+
+        hsv = np.stack([hue, saturation, value], axis=-1)
+        rgb = hsv2rgb(hsv)
+
+        circular_rgb = np.ones((size, size, 4))  # Add alpha channel
+        circular_rgb[..., :3] = rgb
+        circular_rgb[..., 3] = mask  # Set alpha channel to mask
+
+        # Add a marker for each point in marker
+        
+        for champion in self.champion_list:
+
+            marker = {
+                'Q': self.spell_colors[f'{champion}_Q'],
+                'W': self.spell_colors[f'{champion}_W'],
+                'E': self.spell_colors[f'{champion}_E'],
+                'R': self.spell_colors[f'{champion}_R'],
+                'P': self.spell_colors[f'{champion}_P'],
+            }
+            # avg_marker = np.mean(marker, axis=0)
+            # marker = [avg_marker]
+            # marker = [(0, 200, 0)]
+
+            for name in marker:
+                # marker is a (r, g, b) tuple
+                m = marker[name]
+                hsv = rgb2hsv(np.array(m) / 255.0)
+                angle = hsv[0] * 2 * np.pi - np.pi  # Adjust angle by subtracting π (180 degrees)
+                distance =  radius * hsv[1]  # Adjust distance by multiplying by saturation
+
+                x = int(radius + distance * np.cos(angle))
+                y = int(radius + distance * np.sin(angle))
+                alpha = 1 if champion == selected_champion else 0.1
+                plt.scatter(x, y, color='black', s=100, marker='x', alpha=alpha)
+                # plt.text(x, y, f'{champion}_{name}', fontsize=8, color='black', ha='center', va='center')
+
+        plt.imshow(circular_rgb)
+        plt.axis('off')
+        plt.show()
+
 
 
     def export_imposter_kits(self):
@@ -274,8 +333,8 @@ class LeagueData:
         with open('spell_colors.json', 'w') as f:
             json.dump(self.spell_colors, f)
 
-        # with open('distance_table.json', 'w') as f:
-        #     json.dump(distance_table, f)
+        with open('distance_table.json', 'w') as f:
+            json.dump(self.distance_table, f)
 
 
         return
